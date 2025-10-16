@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  tts-service:
+    build:
+      context: ./tts-service
+      dockerfile: Dockerfile
+    container_name: tts-service
+    ports:
+      - "${TTS_PORT:-8082}:8082"
+    environment:
+      - TTS_HOST=${TTS_HOST:-0.0.0.0}
+      - TTS_PORT=${TTS_PORT:-8082}
+      - TTS_MODEL_PATH=${TTS_MODEL_PATH:-/opt/models}
+      - TTS_SAMPLE_RATE=${TTS_SAMPLE_RATE:-22050}
+      - TTS_CHUNK_SIZE=${TTS_CHUNK_SIZE:-1024}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - TTS_MODEL_NAME=${TTS_MODEL_NAME:-espeak}
+    volumes:
+      - models_tts:/opt/models
+      - logs:/var/log/app
+    networks:
+      - speech_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  asr-service:
+    build:
+      context: ./asr-service
+      dockerfile: Dockerfile
+    container_name: asr-service
+    ports:
+      - "${ASR_PORT:-8081}:8081"
+    environment:
+      - ASR_HOST=${ASR_HOST:-0.0.0.0}
+      - ASR_PORT=${ASR_PORT:-8081}
+      - ASR_MODEL_PATH=${ASR_MODEL_PATH:-/opt/models}
+      - ASR_SAMPLE_RATE=${ASR_SAMPLE_RATE:-16000}
+      - ASR_MAX_DURATION=${ASR_MAX_DURATION:-15}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - ASR_MODEL_NAME=${ASR_MODEL_NAME:-whisper-base.en}
+    volumes:
+      - models_asr:/opt/models
+      - logs:/var/log/app
+    networks:
+      - speech_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: gateway
+    ports:
+      - "${GATEWAY_PORT:-8000}:8000"
+    environment:
+      - GATEWAY_HOST=${GATEWAY_HOST:-0.0.0.0}
+      - GATEWAY_PORT=${GATEWAY_PORT:-8000}
+      - TTS_SERVICE_URL=http://tts-service:8082
+      - ASR_SERVICE_URL=http://asr-service:8081
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+    volumes:
+      - logs:/var/log/app
+    networks:
+      - speech_net
+    depends_on:
+      - tts-service
+      - asr-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  models_tts:
+    driver: local
+  models_asr:
+    driver: local
+  logs:
+    driver: local
+
+networks:
+  speech_net:
+    driver: bridge
