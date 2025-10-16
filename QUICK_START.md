@@ -1,4 +1,4 @@
-# Quick Start Guide
+# Руководство по быстрому запуску
 
 ## Быстрый запуск для тестирования
 
@@ -49,7 +49,7 @@ pip install -r requirements-test.txt
 pytest tts-service/test_main.py asr-service/test_main.py gateway/test_main.py -v
 ```
 
-## Troubleshooting
+## Решение проблем
 
 ### Проблема: Сервисы не запускаются
 ```bash
@@ -64,13 +64,13 @@ docker-compose up --build
 ```
 
 ### Проблема: Медленная работа ASR
-- Whisper модель загружается при первом запуске
+- Модель Whisper загружается при первом запуске
 - Для ускорения можно использовать tiny.en вместо base.en
 - Измените в .env: `ASR_MODEL_NAME=tiny.en`
 
 ### Проблема: Ошибки с аудио
 - Убедитесь, что input.wav существует для echo_bytes.py
-- Проверьте формат аудио (16kHz, mono рекомендуется)
+- Проверьте формат аудио (16kHz, моно рекомендуется)
 - Для тестирования используйте WAV файлы
 
 ## API Тестирование

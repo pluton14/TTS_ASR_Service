@@ -1,185 +1,185 @@
-# Technical Decisions
+# Технические решения
 
-## Open-Source Model Selection
+## Выбор Open-Source моделей
 
-### TTS (Text-to-Speech)
-**Selected: gTTS (Google Text-to-Speech)**
+### TTS (Синтез речи)
+**Выбрано: gTTS (Google Text-to-Speech)**
 
-**Rationale:**
-- High-quality speech synthesis with natural-sounding voices
-- Easy integration with FastAPI and WebSocket streaming
-- Minimal dependencies and setup complexity
-- Works reliably in Docker containers
-- Good performance for demonstration purposes
+**Обоснование:**
+- Высокое качество синтеза речи с естественными голосами
+- Простая интеграция с FastAPI и WebSocket стримингом
+- Минимальные зависимости и простота настройки
+- Надежная работа в Docker контейнерах
+- Хорошая производительность для демонстрационных целей
 
-**Migration from pyttsx3:**
-- **Original choice**: pyttsx3 with espeak backend was initially selected for offline use
-- **Problem encountered**: pyttsx3 had issues in Docker environment without sound system
-- **Solution**: Switched to gTTS for reliable speech synthesis
-- **Trade-off**: Now requires internet connection but provides better quality
+**Миграция с pyttsx3:**
+- **Изначальный выбор**: pyttsx3 с espeak backend был выбран для автономной работы
+- **Проблема**: pyttsx3 имел проблемы в Docker окружении без звуковой системы
+- **Решение**: Переход на gTTS для надежного синтеза речи
+- **Компромисс**: Теперь требует интернет-соединения, но обеспечивает лучшее качество
 
-**Alternatives considered:**
-- **pyttsx3 + espeak**: Good for offline use but problematic in Docker
-- **Tacotron2/NeMo**: Too heavy for CPU-only inference, requires GPU
-- **Coqui TTS**: More complex setup, better suited for production with GPU
+**Альтернативы, которые рассматривались:**
+- **pyttsx3 + espeak**: Хорошо для автономной работы, но проблематично в Docker
+- **Tacotron2/NeMo**: Слишком тяжелые для CPU-only инференса, требуют GPU
+- **Coqui TTS**: Более сложная настройка, лучше подходит для продакшена с GPU
 
-### ASR (Automatic Speech Recognition)
-**Selected: OpenAI Whisper (base.en)**
+### ASR (Автоматическое распознавание речи)
+**Выбрано: OpenAI Whisper (base.en)**
 
-**Rationale:**
-- State-of-the-art accuracy for English speech recognition
-- Good performance on CPU (though slower than GPU)
-- Excellent handling of various audio formats and quality
-- Built-in support for audio preprocessing and normalization
-- Well-documented API and easy integration
+**Обоснование:**
+- Современная точность распознавания английской речи
+- Хорошая производительность на CPU (хотя медленнее GPU)
+- Отличная обработка различных аудио форматов и качества
+- Встроенная поддержка предобработки и нормализации аудио
+- Хорошо документированный API и простая интеграция
 
-**Alternatives considered:**
-- **DeepSpeech**: Older model, lower accuracy
-- **Wav2Vec2**: More complex setup, requires fine-tuning for optimal results
-- **AssemblyAI/Rev.ai**: Cloud-based, requires internet and API keys
+**Альтернативы, которые рассматривались:**
+- **DeepSpeech**: Устаревшая модель, низкая точность
+- **Wav2Vec2**: Более сложная настройка, требует тонкой настройки для оптимальных результатов
+- **AssemblyAI/Rev.ai**: Облачные решения, требуют интернет и API ключи
 
-## Architecture Decisions
+## Архитектурные решения
 
-### Microservices Architecture
-**Decision: Separate containers for TTS, ASR, and Gateway**
+### Микросервисная архитектура
+**Решение: Отдельные контейнеры для TTS, ASR и Gateway**
 
-**Benefits:**
-- Independent scaling and deployment
-- Technology isolation (different ML frameworks)
-- Clear separation of concerns
-- Easier testing and debugging
-- Fault isolation
+**Преимущества:**
+- Независимое масштабирование и развертывание
+- Технологическая изоляция (разные ML фреймворки)
+- Четкое разделение ответственности
+- Упрощенное тестирование и отладка
+- Изоляция сбоев
 
-### Communication Protocols
-**TTS Service:**
-- WebSocket for real-time streaming (`ws://tts:8082/ws/tts`)
-- HTTP POST for simple requests (`POST /api/tts`)
+### Протоколы связи
+**TTS Сервис:**
+- WebSocket для реального времени стриминга (`ws://tts:8082/ws/tts`)
+- HTTP POST для простых запросов (`POST /api/tts`)
 
-**ASR Service:**
-- HTTP POST for file-based processing (`POST /api/stt/bytes`)
+**ASR Сервис:**
+- HTTP POST для обработки файлов (`POST /api/stt/bytes`)
 
 **Gateway:**
-- WebSocket proxy for TTS (`ws://gateway:8000/ws/tts`)
+- WebSocket прокси для TTS (`ws://gateway:8000/ws/tts`)
 - HTTP echo endpoint (`POST /api/echo-bytes`)
 
-### Audio Format
-**Decision: 16-bit PCM, mono, configurable sample rates**
+### Аудио формат
+**Решение: 16-bit PCM, моно, настраиваемые частоты дискретизации**
 
-**Rationale:**
-- Standard format supported by all audio libraries
-- Efficient for streaming (no compression overhead)
-- Easy to process and convert
-- Compatible with most speech processing models
+**Обоснование:**
+- Стандартный формат, поддерживаемый всеми аудио библиотеками
+- Эффективен для стриминга (без накладных расходов на сжатие)
+- Легко обрабатывается и конвертируется
+- Совместим с большинством моделей обработки речи
 
-## Implementation Details
+## Детали реализации
 
-### Streaming Implementation
-**TTS Streaming:**
-- Fixed chunk size (1024 bytes by default)
-- Real-time streaming without buffering entire audio
-- Proper stream finalization with end markers
-- Error handling for stream interruptions
+### Реализация стриминга
+**TTS Стриминг:**
+- Фиксированный размер чанка (1024 байта по умолчанию)
+- Стриминг в реальном времени без буферизации всего аудио
+- Правильная финализация потока с маркерами окончания
+- Обработка ошибок для прерываний потока
 
-**Audio Processing:**
-- Automatic resampling to target sample rates
-- Stereo to mono conversion when needed
-- Audio normalization for consistent levels
-- Proper PCM format conversion
+**Обработка аудио:**
+- Автоматическая передискретизация до целевых частот дискретизации
+- Конвертация стерео в моно при необходимости
+- Нормализация аудио для согласованных уровней
+- Правильная конвертация PCM формата
 
-### Error Handling
-- Structured logging with JSON format
-- Comprehensive exception handling
-- Graceful degradation for service failures
-- Clear error messages for API consumers
+### Обработка ошибок
+- Структурированное логирование в JSON формате
+- Комплексная обработка исключений
+- Graceful degradation при сбоях сервисов
+- Четкие сообщения об ошибках для потребителей API
 
-### Configuration Management
-- Environment-based configuration
-- Separate settings for each service
-- Docker-friendly configuration
-- Health check endpoints for monitoring
+### Управление конфигурацией
+- Конфигурация на основе переменных окружения
+- Отдельные настройки для каждого сервиса
+- Конфигурация, дружественная к Docker
+- Health check endpoints для мониторинга
 
-## Challenges and Solutions
+## Вызовы и решения
 
-### Challenge 1: CPU Performance
-**Problem:** Whisper model is slow on CPU
-**Solution:** 
-- Used whisper-base.en (smaller model)
-- Optimized audio preprocessing
-- Acceptable for demonstration purposes
-- Added timeout handling for long audio
+### Вызов 1: Производительность CPU
+**Проблема:** Модель Whisper медленная на CPU
+**Решение:** 
+- Использована whisper-base.en (меньшая модель)
+- Оптимизирована предобработка аудио
+- Приемлемо для демонстрационных целей
+- Добавлена обработка таймаутов для длинного аудио
 
-### Challenge 2: Audio Format Compatibility
-**Problem:** Different audio formats and sample rates
-**Solution:**
-- Implemented robust audio preprocessing pipeline
-- Automatic format detection and conversion
-- Support for various input formats
-- Standardized PCM output
+### Вызов 2: Совместимость аудио форматов
+**Проблема:** Разные аудио форматы и частоты дискретизации
+**Решение:**
+- Реализован надежный пайплайн предобработки аудио
+- Автоматическое определение и конвертация форматов
+- Поддержка различных входных форматов
+- Стандартизированный PCM вывод
 
-### Challenge 3: Streaming Reliability
-**Problem:** WebSocket connections can be unstable
-**Solution:**
-- Implemented connection management
-- Proper error handling and reconnection logic
-- Stream finalization markers
-- Timeout handling
+### Вызов 3: Надежность стриминга
+**Проблема:** WebSocket соединения могут быть нестабильными
+**Решение:**
+- Реализовано управление соединениями
+- Правильная обработка ошибок и логика переподключения
+- Маркеры финализации потока
+- Обработка таймаутов
 
-## What Didn't Work Out of the Box
+## Что не работало из коробки
 
-### TTS Engine Initialization
-- **Issue:** pyttsx3 had issues in Docker environment without sound system
-- **Solution:** Switched to gTTS which works reliably in containers
-- **Implementation:** Added ffmpeg to Dockerfile for gTTS audio processing
+### Инициализация TTS движка
+- **Проблема:** pyttsx3 имел проблемы в Docker окружении без звуковой системы
+- **Решение:** Переход на gTTS, который надежно работает в контейнерах
+- **Реализация:** Добавлен ffmpeg в Dockerfile для обработки аудио gTTS
 
-### Whisper Model Download
-- **Issue:** Model download can be slow on first run
-- **Solution:** Pre-download models in Docker build or use volume mounting
-- **Note:** In production, models should be pre-cached
+### Загрузка модели Whisper
+- **Проблема:** Загрузка модели может быть медленной при первом запуске
+- **Решение:** Предварительная загрузка моделей в Docker build или использование монтирования томов
+- **Примечание:** В продакшене модели должны быть предварительно кэшированы
 
-### Audio Format Handling
-- **Issue:** Various audio formats require different processing
-- **Solution:** Implemented comprehensive audio preprocessing pipeline
-- **Enhancement:** Could add more format support (MP3, AAC, etc.)
+### Обработка аудио форматов
+- **Проблема:** Различные аудио форматы требуют разной обработки
+- **Решение:** Реализован комплексный пайплайн предобработки аудио
+- **Улучшение:** Можно добавить поддержку большего количества форматов (MP3, AAC, и т.д.)
 
-## Future Improvements (TODO/Roadmap)
+## Будущие улучшения (TODO/Дорожная карта)
 
-### Performance Optimizations
-- [ ] GPU support for faster Whisper inference
-- [ ] Model quantization for reduced memory usage
-- [ ] Caching for frequently requested TTS
-- [ ] Batch processing for multiple audio files
+### Оптимизации производительности
+- [ ] GPU поддержка для более быстрого Whisper инференса
+- [ ] Квантизация моделей для снижения использования памяти
+- [ ] Кэширование для часто запрашиваемого TTS
+- [ ] Пакетная обработка для множественных аудио файлов
 
-### Feature Enhancements
-- [ ] Multiple language support
-- [ ] Voice customization options
-- [ ] Audio format conversion endpoints
-- [ ] Real-time audio streaming from microphone
+### Улучшения функциональности
+- [ ] Поддержка нескольких языков
+- [ ] Опции настройки голоса
+- [ ] Endpoints конвертации аудио форматов
+- [ ] Стриминг аудио в реальном времени с микрофона
 
-### Production Readiness
-- [ ] Comprehensive unit and integration tests
-- [ ] Performance monitoring and metrics
-- [ ] Load balancing and scaling
-- [ ] Security enhancements (authentication, rate limiting)
+### Готовность к продакшену
+- [ ] Комплексные unit и интеграционные тесты
+- [ ] Мониторинг производительности и метрики
+- [ ] Балансировка нагрузки и масштабирование
+- [ ] Улучшения безопасности (аутентификация, ограничение скорости)
 
-### DevOps Improvements
-- [ ] Kubernetes deployment manifests
-- [ ] CI/CD pipeline
-- [ ] Automated testing
-- [ ] Monitoring and alerting
+### Улучшения DevOps
+- [ ] Kubernetes манифесты развертывания
+- [ ] CI/CD пайплайн
+- [ ] Автоматизированное тестирование
+- [ ] Мониторинг и алертинг
 
-## Resource Requirements
+## Требования к ресурсам
 
-### CPU Requirements
-- **Minimum:** 2 cores, 4GB RAM
-- **Recommended:** 4 cores, 8GB RAM
-- **For production:** 8+ cores, 16GB+ RAM
+### Требования к CPU
+- **Минимум:** 2 ядра, 4GB RAM
+- **Рекомендуется:** 4 ядра, 8GB RAM
+- **Для продакшена:** 8+ ядер, 16GB+ RAM
 
-### Storage Requirements
-- **Models:** ~500MB for whisper base.en
-- **Logs:** Variable based on usage
-- **Audio cache:** Optional, depends on caching strategy
+### Требования к хранилищу
+- **Модели:** ~500MB для whisper base.en
+- **Логи:** Переменные в зависимости от использования
+- **Аудио кэш:** Опционально, зависит от стратегии кэширования
 
-### Network Requirements
-- **Internal:** Low latency between services
-- **External:** Depends on client usage patterns
-- **Bandwidth:** Audio streaming requires stable connection
+### Требования к сети
+- **Внутренняя:** Низкая задержка между сервисами
+- **Внешняя:** Зависит от паттернов использования клиентов
+- **Пропускная способность:** Аудио стриминг требует стабильного соединения
