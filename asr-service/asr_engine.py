@@ -1,4 +1,3 @@
-"""ASR Engine implementation using OpenAI Whisper."""
 
 import io
 import numpy as np
@@ -13,10 +12,8 @@ logger = get_logger(__name__)
 
 
 class ASREngine:
-    """Automatic Speech Recognition engine using OpenAI Whisper."""
     
     def __init__(self):
-        """Initialize ASR engine."""
         self.model = None
         self.sample_rate = settings.sample_rate
         self.max_duration = settings.max_duration
@@ -24,11 +21,9 @@ class ASREngine:
         self._initialize_model()
     
     def _initialize_model(self) -> None:
-        """Initialize the Whisper model."""
         try:
             logger.info("Loading Whisper model", model_name=self.model_name)
             
-            # Load Whisper model
             self.model = whisper.load_model(self.model_name)
             
             logger.info("Whisper model loaded successfully")
@@ -38,8 +33,6 @@ class ASREngine:
             raise
     
     def _validate_audio(self, audio_data: np.ndarray, sample_rate: int) -> None:
-        """Validate audio data."""
-        # Check duration
         duration = len(audio_data) / sample_rate
         if duration > self.max_duration:
             raise ValueError(f"Audio duration ({duration:.2f}s) exceeds maximum allowed duration ({self.max_duration}s)")
@@ -48,32 +41,18 @@ class ASREngine:
         if len(audio_data) == 0:
             raise ValueError("Empty audio data")
         
-        # Check audio level (not too quiet)
         if np.max(np.abs(audio_data)) < 0.001:
             logger.warning("Audio level is very low")
     
     def _preprocess_audio(self, audio_bytes: bytes, sample_rate: int, channels: int) -> np.ndarray:
-        """Preprocess audio bytes to numpy array."""
         try:
-            # Create audio file from bytes
-            audio_io = io.BytesIO(audio_bytes)
+            audio_data = np.frombuffer(audio_bytes, dtype=np.int16)
             
-            # Read audio data
-            audio_data, file_sample_rate = sf.read(audio_io)
+            # Convert to float32 and normalize to [-1, 1]
+            audio_data = audio_data.astype(np.float32) / 32768.0
             
-            # Handle stereo to mono conversion
-            if len(audio_data.shape) > 1 and channels > 1:
-                audio_data = np.mean(audio_data, axis=1)
-            elif len(audio_data.shape) > 1:
-                audio_data = audio_data[:, 0]  # Take first channel
-            
-            # Resample if necessary
-            if file_sample_rate != sample_rate:
-                from scipy import signal
-                audio_data = signal.resample(
-                    audio_data, 
-                    int(len(audio_data) * sample_rate / file_sample_rate)
-                )
+            # Resample if necessary (no need since we're already at the correct sample rate)
+            # The audio_data is already at the correct sample rate from the raw PCM
             
             # Normalize audio
             if np.max(np.abs(audio_data)) > 0:
@@ -86,7 +65,6 @@ class ASREngine:
             raise
     
     def _convert_segments(self, whisper_result: dict) -> List[ASRSegment]:
-        """Convert Whisper segments to ASR segments."""
         segments = []
         
         if "segments" in whisper_result:

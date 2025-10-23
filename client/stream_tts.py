@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-Client script for testing TTS WebSocket streaming.
-Connects to ws://localhost:8000/ws/tts, sends text, receives binary PCM frames,
-and saves them to out.wav while printing timestamps.
-"""
 
 import asyncio
 import json

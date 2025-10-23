@@ -1,4 +1,3 @@
-"""Configuration module for ASR service."""
 
 import os
 from typing import Optional

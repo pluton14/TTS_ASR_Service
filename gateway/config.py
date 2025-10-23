@@ -1,4 +1,3 @@
-"""Configuration module for Gateway service."""
 
 import os
 from typing import Optional
@@ -7,7 +6,6 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Application settings."""
     
     # Server configuration
     host: str = Field(default="0.0.0.0", env="GATEWAY_HOST")

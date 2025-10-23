@@ -1,4 +1,3 @@
-"""Logging configuration for ASR service."""
 
 import sys
 import structlog

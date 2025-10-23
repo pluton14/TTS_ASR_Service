@@ -1,4 +1,3 @@
-"""Logging configuration for TTS service."""
 
 import sys
 import structlog

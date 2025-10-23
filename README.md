@@ -1,111 +1,61 @@
-# Streaming TTS + Offline STT Pipeline
+# TTS + ASR Pipeline
 
-Минимальный, но аккуратно спроектированный пайплайн для синтеза речи со стриминговой выдачей аудио и распознавания речи по файлу.
+Микросервисная система для синтеза и распознавания речи.
 
 ## Архитектура
 
-Проект состоит из трех микросервисов:
+- **tts-service** - синтез речи (gTTS)
+- **asr-service** - распознавание речи (Whisper)  
+- **gateway** - маршрутизация запросов
+- **client** - тестовые скрипты
 
-1. **tts-service** - сервис синтеза речи с стриминговой отдачей PCM (gTTS + Google Text-to-Speech)
-2. **asr-service** - сервис распознавания речи по файлу (OpenAI Whisper)
-3. **gateway** - единая точка входа, проксирующая запросы и объединяющая поток TTS
+## Запуск
 
-## Быстрый запуск
+1. Клонировать репозиторий
+2. Скопировать `.env.example` в `.env`
+3. Запустить сервисы:
 
-### Предварительные требования
-- Docker & Docker Compose
-- Python 3.8+ (для клиентских скриптов)
-- Минимум 4GB RAM (для Whisper модели)
-
-### Запуск сервисов
-
-1. Клонируйте репозиторий:
-```bash
-git clone <repository-url>
-cd TEST_Volgarev
-```
-
-2. Скопируйте файл конфигурации:
-```bash
-cp env.example .env
-```
-
-3. Запустите сервисы:
 ```bash
 docker-compose up --build
 ```
 
-**Примечание:** 
-- Первый запуск может занять несколько минут из-за загрузки Whisper модели
-- TTS сервис использует Google Text-to-Speech и требует интернет-соединения
+4. Дождаться загрузки моделей (1-2 минуты)
 
-4. Проверьте статус сервисов:
-```bash
-# Проверка Gateway
-curl http://localhost:8000/health
+## Тестирование
 
-# Проверка TTS сервиса
-curl http://localhost:8082/health
-
-# Проверка ASR сервиса
-curl http://localhost:8081/health
-```
-
-### Тестирование
-
-1. Установите зависимости для клиентских скриптов:
-```bash
-pip install -r client/requirements.txt
-```
-
-2. Тест TTS через WebSocket:
+### TTS через WebSocket
 ```bash
 python client/stream_tts.py
 ```
 
-3. Тест echo-bytes функциональности:
+### ASR + TTS pipeline
 ```bash
 python client/echo_bytes.py
 ```
 
-### Запуск тестов
+## API
 
-```bash
-# Установите тестовые зависимости
-pip install -r requirements-test.txt
+**Gateway (порт 8000):**
+- `GET /health` - проверка здоровья
+- `POST /api/echo-bytes` - ASR + TTS pipeline
+- `WS /ws/tts` - WebSocket для TTS
 
-# Запустите тесты для всех сервисов
-pytest tts-service/test_main.py -v
-pytest asr-service/test_main.py -v
-pytest gateway/test_main.py -v
-```
+**TTS Service (порт 8082):**
+- `POST /api/tts` - HTTP синтез речи
+- `WS /ws/tts` - WebSocket синтез
 
-## API Endpoints
-
-### Gateway
-- `ws://localhost:8000/ws/tts` - WebSocket для TTS
-- `POST /api/echo-bytes` - HTTP для echo-bytes функциональности
-
-### TTS Service
-- `ws://localhost:8082/ws/tts` - WebSocket для синтеза речи
-- `POST /api/tts` - HTTP для синтеза речи
-
-### ASR Service
-- `POST /api/stt/bytes` - HTTP для распознавания речи
+**ASR Service (порт 8081):**
+- `POST /api/stt/bytes` - распознавание речи
 
 ## Требования
 
-- Docker & Docker Compose
-- Python 3.8+ (для клиентских скриптов)
+- Docker
+- Python 3.11+
+- Интернет для gTTS
 
-## Структура проекта
+## Переменные окружения
 
-```
-├── tts-service/          # TTS микросервис
-├── asr-service/          # ASR микросервис  
-├── gateway/              # Gateway сервис
-├── client/               # Клиентские инструменты
-├── docker-compose.yml    # Docker Compose конфигурация
-├── .env.example         # Пример переменных окружения
-└── DECISIONS.md         # Технические решения
-```
+Основные настройки в `.env`:
+- `TTS_LANGUAGE=en` - язык для TTS
+- `ASR_MODEL_NAME=base.en` - модель Whisper
+- `LOG_LEVEL=INFO` - уровень логирования

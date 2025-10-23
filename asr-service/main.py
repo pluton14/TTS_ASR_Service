@@ -1,7 +1,7 @@
-"""Main FastAPI application for ASR service."""
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from typing import Dict, Any
 
@@ -20,7 +20,6 @@ logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
     logger.info("Starting ASR service", 
                host=settings.host, 
                port=settings.port,
@@ -49,7 +48,6 @@ app.add_middleware(
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
     try:
         is_healthy = asr_engine.is_healthy()
         status = "healthy" if is_healthy else "unhealthy"
@@ -73,9 +71,7 @@ async def stt_bytes(
     lang: str = "en",
     fmt: str = "s16le"
 ):
-    """Speech-to-text endpoint that accepts raw audio bytes."""
     try:
-        # Validate parameters
         if sr < 8000 or sr > 48000:
             raise HTTPException(
                 status_code=400, 
@@ -88,7 +84,6 @@ async def stt_bytes(
                 detail="Number of channels must be 1 or 2"
             )
         
-        # Read audio bytes from request body
         audio_bytes = await request.body()
         
         if not audio_bytes:
@@ -104,7 +99,6 @@ async def stt_bytes(
                    language=lang,
                    format=fmt)
         
-        # Transcribe audio
         text, segments = asr_engine.transcribe(
             audio_bytes=audio_bytes,
             sample_rate=sr,
@@ -112,7 +106,6 @@ async def stt_bytes(
             language=lang
         )
         
-        # Prepare response
         if segments:
             response = ASRResponseWithSegments(
                 text=text,
@@ -140,28 +133,32 @@ async def stt_bytes(
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """Custom HTTP exception handler."""
     logger.error("HTTP exception", 
                 status_code=exc.status_code,
                 detail=exc.detail,
                 path=request.url.path)
     
-    return ErrorResponse(
-        error=f"HTTP {exc.status_code}",
-        detail=exc.detail
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": f"HTTP {exc.status_code}",
+            "detail": exc.detail
+        }
     )
 
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    """General exception handler."""
     logger.error("Unhandled exception", 
                 error=str(exc),
                 path=request.url.path)
     
-    return ErrorResponse(
-        error="Internal server error",
-        detail="An unexpected error occurred"
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Internal server error",
+            "detail": "An unexpected error occurred"
+        }
     )
 
 

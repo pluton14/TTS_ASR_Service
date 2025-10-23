@@ -1,4 +1,3 @@
-"""Main FastAPI application for Gateway service."""
 
 import asyncio
 import json
@@ -22,7 +21,6 @@ from services import service_manager
 
 logger = get_logger(__name__)
 
-# WebSocket connection manager
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[WebSocket, str] = {}
@@ -49,7 +47,6 @@ manager = ConnectionManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
     logger.info("Starting Gateway service", 
                host=settings.host, 
                port=settings.port,
@@ -67,7 +64,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -79,7 +75,6 @@ app.add_middleware(
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
     try:
         # Check service dependencies
         dependencies = await service_manager.check_services_health()
@@ -101,7 +96,6 @@ async def health_check():
 
 @app.websocket("/ws/tts")
 async def tts_websocket(websocket: WebSocket):
-    """WebSocket endpoint for TTS streaming."""
     client_id = f"client_{id(websocket)}"
     
     try:
@@ -185,9 +179,7 @@ async def echo_bytes(
     ch: int = 1,
     fmt: str = "s16le"
 ):
-    """Echo bytes endpoint: ASR -> TTS streaming."""
     try:
-        # Validate parameters
         if sr < 8000 or sr > 48000:
             raise HTTPException(
                 status_code=400, 
@@ -200,7 +192,6 @@ async def echo_bytes(
                 detail="Number of channels must be 1 or 2"
             )
         
-        # Read audio bytes from request body
         audio_bytes = await request.body()
         
         if not audio_bytes:
@@ -214,49 +205,92 @@ async def echo_bytes(
                    sample_rate=sr,
                    channels=ch)
         
-        async def generate_echo_stream():
-            """Generate echo stream: ASR -> TTS."""
-            try:
-                # Step 1: Transcribe audio using ASR
-                asr_result = await service_manager.asr_client.transcribe(
-                    audio_bytes=audio_bytes,
-                    sample_rate=sr,
-                    channels=ch,
-                    language="en"
+        try:
+            logger.info("Calling ASR service", 
+                       audio_size=len(audio_bytes),
+                       sample_rate=sr,
+                       channels=ch)
+            
+            asr_result = await service_manager.asr_client.transcribe(
+                audio_bytes=audio_bytes,
+                sample_rate=sr,
+                channels=ch,
+                language="en"
+            )
+            
+            logger.info("ASR result received", result=asr_result)
+            
+            recognized_text = asr_result.get("text", "")
+            segments = asr_result.get("segments", [])
+            
+            logger.info("ASR completed", 
+                       text_length=len(recognized_text),
+                       segments_count=len(segments))
+            
+            # Log the recognized text for debugging
+            print(f"\n{'='*50}")
+            print("РАСПОЗНАННЫЙ ТЕКСТ:")
+            print(f"📝 {recognized_text}")
+            if segments:
+                print(f"📊 Сегменты ({len(segments)}):")
+                for i, segment in enumerate(segments, 1):
+                    print(f"  {i}. {segment}")
+            print("="*50)
+            
+            if not recognized_text.strip():
+                logger.warning("No text recognized from audio")
+                return StreamingResponse(
+                    iter([]),
+                    media_type="application/octet-stream",
+                    headers={
+                        "Content-Type": "application/octet-stream",
+                        "X-Sample-Rate": str(sr),
+                        "X-Channels": str(ch),
+                        "X-Recognized-Text": "",
+                        "X-Segments": "[]"
+                    }
                 )
-                
-                recognized_text = asr_result.get("text", "")
-                segments = asr_result.get("segments", [])
-                
-                logger.info("ASR completed", 
-                           text_length=len(recognized_text),
-                           segments_count=len(segments))
-                
-                if not recognized_text.strip():
-                    logger.warning("No text recognized from audio")
+            
+            import json
+            segments_json = json.dumps(segments) if segments else "[]"
+            
+            async def generate_echo_stream():
+                try:
+                    # Synthesize recognized text using TTS
+                    async for audio_chunk in service_manager.tts_client.synthesize_stream_http(recognized_text):
+                        yield audio_chunk
+                    
+                    logger.info("Echo bytes request completed")
+                    
+                except Exception as e:
+                    logger.error("Echo bytes generation failed", error=str(e))
                     return
-                
-                # Step 2: Synthesize recognized text using TTS
-                async for audio_chunk in service_manager.tts_client.synthesize_stream_http(recognized_text):
-                    yield audio_chunk
-                
-                logger.info("Echo bytes request completed")
-                
-            except Exception as e:
-                logger.error("Echo bytes generation failed", error=str(e))
-                # Cannot raise HTTPException here as response has already started
-                # Just log the error and stop streaming
-                return
-        
-        return StreamingResponse(
-            generate_echo_stream(),
-            media_type="application/octet-stream",
-            headers={
-                "Content-Type": "application/octet-stream",
-                "X-Sample-Rate": str(sr),
-                "X-Channels": str(ch)
-            }
-        )
+            
+            return StreamingResponse(
+                generate_echo_stream(),
+                media_type="application/octet-stream",
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "X-Sample-Rate": str(sr),
+                    "X-Channels": str(ch),
+                    "X-Recognized-Text": recognized_text,
+                    "X-Segments": segments_json
+                }
+            )
+            
+        except Exception as e:
+            logger.error("ASR request failed", error=str(e))
+            return StreamingResponse(
+                iter([]),
+                media_type="application/octet-stream",
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "X-Sample-Rate": str(sr),
+                    "X-Channels": str(ch),
+                    "X-Recognized-Text": "",
+                    "X-Segments": "[]"
+                }
+            )
         
     except HTTPException:
         raise

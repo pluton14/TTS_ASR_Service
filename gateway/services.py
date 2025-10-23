@@ -1,4 +1,3 @@
-"""Service clients for TTS and ASR services."""
 
 import asyncio
 import json
@@ -12,14 +11,12 @@ logger = get_logger(__name__)
 
 
 class TTSServiceClient:
-    """Client for TTS service."""
     
     def __init__(self, base_url: str):
         self.base_url = base_url
         self.http_client = httpx.AsyncClient(timeout=30.0)
     
     async def synthesize_stream_http(self, text: str) -> AsyncGenerator[bytes, None]:
-        """Synthesize text using HTTP streaming."""
         try:
             url = f"{self.base_url}/api/tts"
             payload = {"text": text}
@@ -44,9 +41,7 @@ class TTSServiceClient:
             raise
     
     async def synthesize_stream_websocket(self, websocket, text: str) -> None:
-        """Synthesize text using WebSocket."""
         try:
-            # Connect to TTS WebSocket
             tts_ws_url = f"{self.base_url.replace('http', 'ws')}/ws/tts"
             
             logger.info("Connecting to TTS WebSocket", url=tts_ws_url)
@@ -83,14 +78,12 @@ class TTSServiceClient:
 
 
 class ASRServiceClient:
-    """Client for ASR service."""
     
     def __init__(self, base_url: str):
         self.base_url = base_url
         self.http_client = httpx.AsyncClient(timeout=30.0)
     
     async def transcribe(self, audio_bytes: bytes, sample_rate: int, channels: int, language: str = "en") -> Dict[str, Any]:
-        """Transcribe audio bytes to text."""
         try:
             url = f"{self.base_url}/api/stt/bytes"
             params = {
@@ -111,13 +104,23 @@ class ASRServiceClient:
                 content=audio_bytes,
                 headers={"Content-Type": "application/octet-stream"}
             )
-            response.raise_for_status()
+            
+            logger.info("ASR response received", 
+                       status_code=response.status_code,
+                       content_type=response.headers.get("content-type", "unknown"))
+            
+            if response.status_code != 200:
+                logger.error("ASR request failed", 
+                           status_code=response.status_code,
+                           response_text=response.text)
+                response.raise_for_status()
             
             result = response.json()
             
             logger.info("ASR request completed", 
                        text_length=len(result.get("text", "")),
-                       segments_count=len(result.get("segments", [])))
+                       segments_count=len(result.get("segments", [])),
+                       result=result)
             
             return result
             
@@ -131,7 +134,6 @@ class ASRServiceClient:
 
 
 class ServiceManager:
-    """Manager for service clients."""
     
     def __init__(self):
         self.tts_client = TTSServiceClient(settings.tts_service_url)
@@ -158,7 +160,6 @@ class ServiceManager:
         return health_status
     
     async def close(self):
-        """Close all service clients."""
         await self.tts_client.close()
         await self.asr_client.close()
 

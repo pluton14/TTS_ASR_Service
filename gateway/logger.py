@@ -1,4 +1,3 @@
-"""Logging configuration for Gateway service."""
 
 import sys
 import structlog

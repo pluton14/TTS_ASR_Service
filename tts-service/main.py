@@ -1,4 +1,3 @@
-"""Main FastAPI application for TTS service."""
 
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException

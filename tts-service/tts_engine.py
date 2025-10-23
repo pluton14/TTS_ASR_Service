@@ -1,4 +1,3 @@
-"""TTS Engine implementation using gTTS (Google Text-to-Speech)."""
 
 import asyncio
 import io

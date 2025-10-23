@@ -1,4 +1,3 @@
-"""Configuration module for TTS service."""
 
 import os
 from typing import Optional
