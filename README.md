@@ -33,6 +33,21 @@ python client/stream_tts.py
 python client/echo_bytes.py
 ```
 
+### Запуск тестов
+```bash
+# Тесты TTS сервиса
+cd tts-service
+python -m pytest test_main.py -v
+
+# Тесты ASR сервиса  
+cd asr-service
+python -m pytest test_main.py -v
+
+# Тесты Gateway
+cd gateway
+python -m pytest test_main.py -v
+```
+
 ## API
 
 **Gateway (порт 8000):**

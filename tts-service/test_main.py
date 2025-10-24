@@ -1,16 +1,14 @@
 """Unit tests for TTS service."""
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, Mock
 from fastapi.testclient import TestClient
 from main import app
 
 
 class TestTTSHealth:
-    """Test health check endpoint."""
     
     def test_health_check_healthy(self):
-        """Test health check when service is healthy."""
         with patch('main.tts_engine') as mock_engine:
             mock_engine.is_healthy.return_value = True
             
@@ -23,7 +21,6 @@ class TestTTSHealth:
             assert data["service"] == "tts-service"
     
     def test_health_check_unhealthy(self):
-        """Test health check when service is unhealthy."""
         with patch('main.tts_engine') as mock_engine:
             mock_engine.is_healthy.return_value = False
             
@@ -36,32 +33,37 @@ class TestTTSHealth:
 
 
 class TestTTSHTTP:
-    """Test HTTP TTS endpoint."""
     
     def test_tts_http_empty_text(self):
-        """Test HTTP TTS with empty text."""
         client = TestClient(app)
         response = client.post("/api/tts", json={"text": ""})
         
-        assert response.status_code == 422  # Validation error
+        assert response.status_code == 422
     
     def test_tts_http_missing_text(self):
-        """Test HTTP TTS with missing text field."""
         client = TestClient(app)
         response = client.post("/api/tts", json={})
         
-        assert response.status_code == 422  # Validation error
+        assert response.status_code == 422
 
 
 class TestTTSValidation:
-    """Test input validation."""
     
-    def test_valid_text(self):
-        """Test valid text input."""
-        client = TestClient(app)
+    @patch('main.tts_engine.synthesize_stream')
+    @patch('pydub.AudioSegment.from_mp3')
+    @patch('gtts.gTTS')
+    def test_valid_text(self, mock_gtts, mock_from_mp3, mock_synthesize):
+        mock_gtts_instance = MagicMock()
+        mock_gtts.return_value = mock_gtts_instance
+        mock_gtts_instance.save.return_value = None
         
-        # Test normal text
+        mock_audio = MagicMock()
+        mock_audio.export.return_value = b"fake_audio_data"
+        mock_from_mp3.return_value = mock_audio
+        
+        mock_synthesize.return_value = [b"chunk1", b"chunk2"]
+        
+        client = TestClient(app)
         response = client.post("/api/tts", json={"text": "Hello world"})
         
-        # Should work
         assert response.status_code == 200
